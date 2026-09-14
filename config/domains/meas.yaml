@@ -1,0 +1,21 @@
+# TODO(mvp): table_prefixes/documents below are illustrative placeholders — replace
+# with the real physical_model.json prefixes and document filenames once milestone 2
+# (loaders) lands and data/ is populated.
+domain: meas
+name: Měření
+steward: Martin Vala
+goal: Popsat proces vzniku dat o měření a potvrdit klíčové entity.
+scope_in:
+  - Odečty z měřicích zařízení (SCADA, AVE, Alstanet)
+  - Validace a korekce naměřených hodnot
+scope_out:
+  - Fakturace na základě měření
+  - Evidence a revize měřicích zařízení
+table_prefixes:
+  - meas_
+  - scada_
+documents:
+  - meas-proces-popis.md
+what_would_prove_us_wrong: >
+  Kdyby se ukázalo, že korekce hodnot probíhá mimo evidovaný proces a není nikde
+  auditovaná.

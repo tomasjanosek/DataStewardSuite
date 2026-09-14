@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Steward Session app
+# vault/ is its own git repo (VaultWriter commits into it), not tracked here.
+/vault/
+sessions/
+
