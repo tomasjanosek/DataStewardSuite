@@ -12,6 +12,17 @@ from src.models.open_item import OpenItem
 from src.models.process_step import ProcessStep
 from src.models.provenance import Provenance
 from src.models.quality_rule import QualityRule
+from src.models.strawman import (
+    ArchitectProposal,
+    ConceptualEntityProposal,
+    DomainExpertFindings,
+    DomainTermProposal,
+    ModelVariant,
+    ProcessStepProposal,
+    Question,
+    SourcedClaim,
+    Strawman,
+)
 
 
 def _prov(source="document", ref="docs/meas-proces-popis.md", confidence="medium") -> Provenance:
@@ -116,4 +127,67 @@ def sample_domain_card() -> DomainCard:
                 raised_at=datetime(2026, 9, 14, 11, 30),
             )
         ],
+    )
+
+
+@pytest.fixture
+def sample_strawman() -> Strawman:
+    return Strawman(
+        domain="meas",
+        architect_proposal=ArchitectProposal(
+            variants=[
+                ModelVariant(
+                    label="Varianta A: entity podle fyzických tabulek",
+                    description="Každá core tabulka odpovídá jedné entitě 1:1.",
+                    entities=[
+                        ConceptualEntityProposal(
+                            name="Měřicí místo",
+                            grain="Jeden řádek = jedno měřicí místo.",
+                            physical_mapping=["MEAS_VAR"],
+                            rationale=SourcedClaim(
+                                text="MEAS_VAR nese jednoznačný identifikátor a typ měření.",
+                                source="physical_model", ref="MEAS_VAR", confidence="high",
+                            ),
+                        )
+                    ],
+                    consequences="Rychlé na vytvoření, ale blízko fyzickému modelu.",
+                )
+            ],
+            questions=[
+                Question(
+                    text="Je MEAS_VAR skutečně 1:1 s byznysovým pojmem měřicí místo?",
+                    raised_by="architect", source="physical_model", ref="MEAS_VAR", confidence="medium",
+                )
+            ],
+        ),
+        domain_expert_findings=DomainExpertFindings(
+            candidate_terms=[
+                DomainTermProposal(
+                    name="Odečet",
+                    business_definition=SourcedClaim(
+                        text="Naměřená hodnota spotřeby k danému měřicímu místu a času.",
+                        source="document", ref="meas-proces-popis.md", confidence="high",
+                    ),
+                )
+            ],
+            candidate_process_steps=[
+                ProcessStepProposal(
+                    order=1, actor="Technik", system="AVE", trigger="Instalace zařízení",
+                    action="Založí nové měřicí místo.",
+                    source="document", ref="meas-proces-popis.md", confidence="medium",
+                )
+            ],
+            candidate_rules=[
+                SourcedClaim(
+                    text="Aktivní měřicí místo musí mít přiřazené zařízení.",
+                    source="document", ref="meas-proces-popis.md", confidence="medium",
+                )
+            ],
+            questions=[
+                Question(
+                    text="Co se stane se stavem místa při výměně zařízení?",
+                    raised_by="domain_expert", source="document", ref="meas-proces-popis.md", confidence="low",
+                )
+            ],
+        ),
     )
