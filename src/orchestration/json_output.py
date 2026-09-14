@@ -4,6 +4,7 @@ import json
 import re
 from typing import TypeVar
 
+import json_repair
 from pydantic import BaseModel
 
 _JSON_PATTERN = re.compile(r"\{.*\}", re.DOTALL)
@@ -36,4 +37,12 @@ def parse_json_output(raw: str, model: type[ModelT]) -> ModelT:
     match = _JSON_PATTERN.search(raw)
     if not match:
         raise ValueError(f"No JSON object found in LLM output: {raw!r}")
-    return model.model_validate(json.loads(match.group(0)))
+    blob = match.group(0)
+    try:
+        parsed = json.loads(blob)
+    except json.JSONDecodeError:
+        # LLM output occasionally has a minor JSON slip (stray quote, missing
+        # comma) in very large single-blob completions — repair rather than fail
+        # a whole crew run over a cosmetic formatting error.
+        parsed = json_repair.loads(blob)
+    return model.model_validate(parsed)

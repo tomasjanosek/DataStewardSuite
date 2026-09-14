@@ -1,0 +1,36 @@
+# TODO(mvp): model_scope is a PREP-phase candidate slice only (deterministic, no LLM
+# — see spec section 10). Broad recall is intentional: the steward confirms the real
+# scope_in/scope_out during the session (phase 2), so this can over-include.
+# Derived from data/physical_model.json (Gasnet DWH catalog export, not committed —
+# see .gitignore) on 2026-09-14: source system TenderBox (TBOX) is a single
+# consistently-named L0 prefix across landing/trusted/preparation zones, feeding
+# CORE ZONE > Financials (TEND_RSLT, TEND_RSLT_PURCH_ORDER_REL — note this core
+# folder is shared with unrelated financial tables, so it's matched by TEND_ prefix,
+# not by folder), REFERENCE > Financials Reference (TEND_CATG/STAT/TP, same caveat),
+# and a dedicated L2 datamart DATAMARTS > DM_PROCMT (PROCMT_* tables).
+# TODO(mvp): steward name is a placeholder — no real steward has been assigned yet
+# for this domain; replace before running a real session.
+domain: procurement
+name: Nákup
+steward: "TBD"
+goal: Popsat proces vzniku dat o výběrových řízeních (TenderBox) a potvrdit klíčové entity.
+scope_in:
+  - Výběrová řízení / aukce v TenderBoxu (vyhlášení, účastníci, nabídky, kola, výsledek)
+  - Vazba výsledku výběrového řízení na objednávku (Purchase Order)
+scope_out:
+  - Vlastní plnění objednávky (příjem zboží/služeb, fakturace)
+  - Účetní zpracování a platby
+model_scope:
+  folders:
+    - "DATAMARTS > DM_PROCMT"
+  table_code_patterns:
+    - "^TEND_"
+    - "^LZ_TBOX_"
+    - "^TZ_TBOX_"
+    - "^PREP_TBOX_"
+    - "^TZ_REF_TBOX_"
+# TODO(mvp): populate once real Procurement/TenderBox background documents exist.
+documents: []
+what_would_prove_us_wrong: >
+  Kdyby se ukázalo, že výsledek výběrového řízení (TEND_RSLT) nevede jednoznačně k
+  objednávce a vazba na Purchase Order je jen orientační, ne auditovaná.
