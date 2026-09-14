@@ -20,7 +20,7 @@ def live_llm() -> LLM:
         model=f"anthropic/{os.environ.get('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001')}",
         api_key=os.environ["ANTHROPIC_API_KEY"],
         temperature=0,
-        max_tokens=2048,
+        max_tokens=8192,
     )
 
 

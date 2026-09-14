@@ -5,6 +5,7 @@ from crewai import LLM, Agent, Crew, Process, Task
 from src.agents.prompt_loader import load_prompt
 from src.models.strawman import DomainExpertFindings
 from src.orchestration.formatting import format_documents
+from src.orchestration.json_output import json_schema_instruction, parse_json_output
 from src.tools.doc_loader import SourceDocument
 
 
@@ -24,13 +25,12 @@ def run_domain_expert(
     task = Task(
         description=load_prompt("domain_expert_task.md"),
         expected_output=(
-            "Strukturovaný výstup (DomainExpertFindings): kandidátní pojmy, procesní "
-            "kroky (seřazené), metodická pravidla a otázky pro stewarda — každé "
-            "tvrzení se source=\"document\", ref na soubor a confidence. Prázdné "
-            "seznamy tam, kde podklady mlčí."
+            "Výhradně jeden syrový JSON objekt. Žádný text před ani po JSON, žádné "
+            "markdown ``` bloky, žádné \"Thought:\" ani jiný komentář — odpověď MUSÍ "
+            "začínat znakem '{' a končit odpovídajícím '}'.\n\n"
+            + json_schema_instruction(DomainExpertFindings)
         ),
         agent=agent,
-        output_pydantic=DomainExpertFindings,
     )
 
     crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=False)
@@ -41,6 +41,4 @@ def run_domain_expert(
             "documents": format_documents(documents),
         }
     )
-    if not isinstance(result.pydantic, DomainExpertFindings):
-        raise RuntimeError(f"domain_expert crew did not return structured DomainExpertFindings: {result.raw!r}")
-    return result.pydantic
+    return parse_json_output(result.raw, DomainExpertFindings)

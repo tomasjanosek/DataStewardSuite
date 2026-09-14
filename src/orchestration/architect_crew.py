@@ -6,6 +6,7 @@ from src.agents.prompt_loader import load_prompt
 from src.models.physical_model import PhysicalModelSlice
 from src.models.strawman import ArchitectProposal
 from src.orchestration.formatting import format_physical_model_slice
+from src.orchestration.json_output import json_schema_instruction, parse_json_output
 
 
 def run_architect(model_slice: PhysicalModelSlice, domain_name: str, domain_goal: str, llm: LLM) -> ArchitectProposal:
@@ -22,12 +23,12 @@ def run_architect(model_slice: PhysicalModelSlice, domain_name: str, domain_goal
     task = Task(
         description=load_prompt("architect_task.md"),
         expected_output=(
-            "Strukturovaný návrh (ArchitectProposal): 2 varianty modelu, každá s "
-            "entitami (název, grain, fyzické mapování, zdůvodnění se source/ref/"
-            "confidence) a s popisem důsledků; plus seznam otázek pro stewarda."
+            "Výhradně jeden syrový JSON objekt. Žádný text před ani po JSON, žádné "
+            "markdown ``` bloky, žádné \"Thought:\" ani jiný komentář — odpověď MUSÍ "
+            "začínat znakem '{' a končit odpovídajícím '}'.\n\n"
+            + json_schema_instruction(ArchitectProposal)
         ),
         agent=agent,
-        output_pydantic=ArchitectProposal,
     )
 
     crew = Crew(agents=[agent], tasks=[task], process=Process.sequential, verbose=False)
@@ -38,6 +39,4 @@ def run_architect(model_slice: PhysicalModelSlice, domain_name: str, domain_goal
             "physical_model_slice": format_physical_model_slice(model_slice),
         }
     )
-    if not isinstance(result.pydantic, ArchitectProposal):
-        raise RuntimeError(f"architect crew did not return a structured ArchitectProposal: {result.raw!r}")
-    return result.pydantic
+    return parse_json_output(result.raw, ArchitectProposal)

@@ -15,8 +15,6 @@ from src.tools.model_loader import load_domain_slice
 def run_prep(config: DomainConfig, model_path: Path | str, docs_dir: Path | str) -> Strawman:
     """PREP phase (spec section 6): batch, no human — architect + domain_expert run,
     lead's part (assembling the strawman + question plan) is the caller's job."""
-    llm = build_llm()
-
     model_slice = load_domain_slice(
         model_path,
         domain=config.domain,
@@ -25,8 +23,11 @@ def run_prep(config: DomainConfig, model_path: Path | str, docs_dir: Path | str)
     )
     documents = load_documents(docs_dir, config.documents)
 
-    architect_proposal = run_architect(model_slice, config.name, config.goal, llm)
-    domain_expert_findings = run_domain_expert(documents, config.name, config.goal, llm)
+    # TODO(mvp): architect's output scales with the candidate slice size (one
+    # ArchitectProposal covering every table across 2 variants) — give it a much
+    # larger output budget than a normal single-answer task.
+    architect_proposal = run_architect(model_slice, config.name, config.goal, build_llm(max_tokens=32000))
+    domain_expert_findings = run_domain_expert(documents, config.name, config.goal, build_llm())
 
     return Strawman(
         domain=config.domain,
