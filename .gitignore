@@ -222,3 +222,12 @@ __marimo__/
 /vault/
 sessions/
 
+# Real input data (proprietary physical model export + steward documents) is
+# local-only, never committed: it contains internal schema, business logic and
+# real employee names. Only the small synthetic/test fixtures under
+# tests/ and config/ are tracked.
+/data/*
+!/data/docs/
+/data/docs/*
+!/data/docs/.gitkeep
+

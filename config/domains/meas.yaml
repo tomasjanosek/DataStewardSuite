@@ -1,6 +1,11 @@
-# TODO(mvp): table_prefixes/documents below are illustrative placeholders — replace
-# with the real physical_model.json prefixes and document filenames once milestone 2
-# (loaders) lands and data/ is populated.
+# TODO(mvp): model_scope is a PREP-phase candidate slice only (deterministic, no LLM
+# — see spec section 10). Broad recall is intentional: the steward confirms the real
+# scope_in/scope_out during the session (phase 2), so this can over-include.
+# Derived from data/physical_model.json (Gasnet DWH catalog export, not committed —
+# see .gitignore) on 2026-09-14: CORE ZONE > Measuring (L1/CDM), DATAMARTS > DM_MEAS
+# (L2), REFERENCE > Measuring Reference (číselníky), plus L0 landing/trusted source
+# prefixes SCADA/EPD/AFM/IOT/EXT_MEAS/GDO (confirmed with steward — original-shape
+# data is what stewards care most about seeing in PREP).
 domain: meas
 name: Měření
 steward: Martin Vala
@@ -11,11 +16,29 @@ scope_in:
 scope_out:
   - Fakturace na základě měření
   - Evidence a revize měřicích zařízení
-table_prefixes:
-  - meas_
-  - scada_
-documents:
-  - meas-proces-popis.md
+model_scope:
+  folders:
+    - "CORE ZONE > Measuring"
+    - "DATAMARTS > DM_MEAS"
+    - "REFERENCE > Measuring Reference"
+  table_code_patterns:
+    - "^COM_MEAS_"
+    - "^COM_REGL_STAT$"
+    - "^LZ_SCADA_"
+    - "^TZ_SCADA_"
+    - "^LZ_AVE_"
+    - "^TZ_AVE_"
+    - "^LZ_EPD_EMS_"
+    - "^TZ_EXT_EMS_"
+    - "^TZ_EXT_ESM_"
+    - "^LZ_AFM_ODECTY_"
+    - "^TZ_AFM_ODECTY_"
+    - "^LZ_IOT_MEASURING_"
+    - "^TZ_IOT_MEASURING_"
+    - "^TZ_EXT_MEAS_"
+    - "^TZ_GDO_GAS_.*METER"
+# TODO(mvp): populate once real MEAS background documents are in data/docs/.
+documents: []
 what_would_prove_us_wrong: >
   Kdyby se ukázalo, že korekce hodnot probíhá mimo evidovaný proces a není nikde
   auditovaná.
