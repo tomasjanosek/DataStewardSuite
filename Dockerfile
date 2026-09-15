@@ -11,7 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+RUN chmod +x scripts/entrypoint.sh
 
-# TODO(mvp, milestone 3): entrypoint becomes `streamlit run src/ui/app.py` once the
-# Session/UI milestone lands.
+ENTRYPOINT ["scripts/entrypoint.sh"]
 CMD ["pytest"]

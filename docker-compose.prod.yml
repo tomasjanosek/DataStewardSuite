@@ -1,0 +1,11 @@
+# Production overlay for EC2 — use together with docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build ui
+#
+# The `.:/app` code mount from docker-compose.yml is intentional here too: this
+# deployment model is "git pull, then docker compose up" (spec's own "rychle a
+# rucne" MVP philosophy, no image registry/CI pipeline) — the checked-out repo IS
+# the image's source, so the mount just keeps container and host in sync.
+services:
+  ui:
+    restart: unless-stopped
+    command: streamlit run src/ui/app.py --server.address=0.0.0.0 --server.headless=true

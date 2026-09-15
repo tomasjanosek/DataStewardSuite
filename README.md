@@ -9,7 +9,7 @@ Pilotní domény: **Měření (MEAS)** a **Nákup / TenderBox (procurement)** �
 
 ## Stav
 
-**Milestones 1–4 jsou hotové.**
+**Milestones 1–5 jsou hotové.**
 
 - **1 (skelet a schémata):** Pydantic modely artefaktů, deterministický renderer,
   `VaultWriter`, snapshot testy.
@@ -29,8 +29,12 @@ Pilotní domény: **Měření (MEAS)** a **Nákup / TenderBox (procurement)** �
   spuštěním, nález se ukládá jako `QualityRule` s naměřenou baseline. Profiling CLI
   pro předpočet statistik. Ověřeno živě end-to-end v UI proti syntetickým datům
   (`data/meas_demo.xlsx`).
-
-Milestone 5 (nasazení na EC2, SSM) zbývá — viz zadání sekce 12.
+- **5 (nasazení):** hardened `Dockerfile`/`docker-compose.prod.yml`, IAM policy
+  dokumenty a EC2 `user-data.sh` bootstrap, sekrety vždy z AWS Secrets Manageru
+  (nikdy na disku ani v repozitáři — viz `scripts/entrypoint.sh`), plný runbook níže.
+  **Neprovedeno živě** — tato relace neměla připojený AWS účet, takže žádná reálná
+  infrastruktura nebyla vytvořena ani otestována; jde o připravené artefakty a
+  postup ze zadání sekce 12 ("docker-compose, EC2, SSM, README s postupem").
 
 ## Bezpečnostní blocker pro produkci
 
@@ -80,6 +84,77 @@ Vault (`./vault`, gitignored zde) je samostatný lokální git repozitář, do k
 `VaultWriter` commituje. Aplikace ho při prvním běhu sama inicializuje (`git init`).
 Otevři nad ním pracovní kopii v Obsidianu.
 
+## Nasazení (EC2 + SSM)
+
+**Bezpečnostní blocker platí i tady** — bez veřejné IP, bez SSH, jediný přístup je
+přes SSM Session Manager. Postup je ruční (MVP: "rychle a ručně", ne Terraform) —
+`deploy/user-data.sh` dělá zbytek automaticky při startu instance.
+
+1. **Secrets Manager** — vytvoř secret `steward-session/prod` (typ "Other", jako
+   JSON). Obsahuje **jen** Redshift přihlašovací údaje — viz
+   `deploy/secret-shape.example.json` pro přesný tvar (odstraň `_comment` klíč před
+   uploadem). Bedrock nepotřebuje statické klíče — autentizace jde přes IAM roli
+   instance.
+
+   ```bash
+   aws secretsmanager create-secret --name steward-session/prod \
+     --secret-string file://secret.json --region eu-central-1
+   ```
+
+2. **IAM role** — vytvoř roli s trust policy `deploy/iam-trust-policy.json`, přilož
+   dvě policy:
+   - vlastní `deploy/iam-instance-policy.json` (nejdřív doplň `REPLACE_REGION`,
+     `REPLACE_ACCOUNT_ID`, `REPLACE_DOCS_BUCKET` — přesně tři oprávnění dle zadání
+     sekce 8: Bedrock invoke, Secrets Manager read, S3 read na adresář podkladů,
+     nic víc),
+   - AWS-managed `AmazonSSMManagedInstanceCore` (pro Session Manager — není součástí
+     aplikačních oprávnění, je to samostatný požadavek SSM).
+
+   Vytvoř z role instance profile a přiřaď ho EC2 instanci.
+
+3. **Síť** — instance v privátní síti (nebo veřejné podsíti bez veřejné IP),
+   security group **bez jakéhokoli inbound pravidla** (SSM funguje čistě přes
+   outbound HTTPS na SSM endpointy — buď NAT gateway, nebo VPC endpointy pro `ssm`,
+   `ssmmessages`, `ec2messages`, pokud je podsíť plně privátní).
+
+4. **EC2 instance** — Amazon Linux 2023 nebo Ubuntu, žádná veřejná IP, IAM instance
+   profile z kroku 2, jako User data vlož `deploy/user-data.sh` (uprav proměnné
+   `REPO_URL`/`AWS_REGION`/`BEDROCK_MODEL_ID`/`SECRETS_ID` na začátku souboru, nebo
+   je předej jako proměnné prostředí instance). Skript nainstaluje Docker, stáhne
+   repozitář do `/opt/steward-session`, napíše ne-tajný `.env` a spustí
+   `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build ui`.
+
+   Pokud je repozitář privátní, uprav `REPO_URL` na variantu s deploy klíčem nebo
+   tokenem — `user-data.sh` to samo neřeší.
+
+5. **Ověření SSM konektivity:**
+
+   ```bash
+   aws ssm describe-instance-information --region eu-central-1
+   ```
+
+   Instance by se měla objevit se stavem `Online` (typicky do pár minut po startu).
+
+6. **Port forwarding a otevření UI:**
+
+   ```bash
+   aws ssm start-session --target <instance-id> \
+     --document-name AWS-StartPortForwardingSession \
+     --parameters '{"portNumber":["8501"],"localPortNumber":["8501"]}' \
+     --region eu-central-1
+   ```
+
+   Pak otevři `http://localhost:8501` v prohlížeči — tunelováno přes SSM, žádný
+   veřejný port na instanci.
+
+7. **Aktualizace po nasazení** — přes stejný SSM tunel se lze připojit i k shellu
+   (`aws ssm start-session --target <instance-id>`) a spustit:
+
+   ```bash
+   cd /opt/steward-session && git pull && \
+     docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build ui
+   ```
+
 ## Struktura
 
 ```
@@ -102,5 +177,7 @@ data/              fyzický model, podkladové dokumenty, demo Excel, profily (l
                     gitignored — obsahuje interní schéma a byznys logiku)
 sessions/          stav seancí a strawmany (lokální, gitignored)
 vault/             git repo se seance výstupy (vzniká za běhu, gitignored)
+scripts/           entrypoint.sh + fetch_secrets.py (Secrets Manager -> env, nikdy na disk)
+deploy/            IAM policy dokumenty, EC2 user-data.sh, tvar secretu (nasazení)
 tests/
 ```

@@ -1,0 +1,27 @@
+{
+  "_comment": "Spec section 8: 'IAM role instance: Bedrock invoke, Secrets Manager read, S3 read na adresar podkladu. Nic vic.' Replace the REPLACE_* placeholders before attaching. Also attach the AWS-managed AmazonSSMManagedInstanceCore policy separately — SSM Session Manager access is how operators reach the instance (no public IP, no SSH), it is not part of the app's own permissions.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BedrockInvoke",
+      "Effect": "Allow",
+      "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+      "Resource": "arn:aws:bedrock:REPLACE_REGION::foundation-model/*"
+    },
+    {
+      "Sid": "SecretsManagerRead",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:REPLACE_REGION:REPLACE_ACCOUNT_ID:secret:steward-session/*"
+    },
+    {
+      "Sid": "S3ReadDocs",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::REPLACE_DOCS_BUCKET",
+        "arn:aws:s3:::REPLACE_DOCS_BUCKET/podklady/*"
+      ]
+    }
+  ]
+}
