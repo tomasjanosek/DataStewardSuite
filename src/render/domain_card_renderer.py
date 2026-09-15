@@ -1,8 +1,20 @@
 from __future__ import annotations
 
-from src.models.domain_card import DomainCard
+from src.models.domain_card import DomainCard, ScopeStatement
 from src.render.markdown_utils import EMPTY_MARK, bullets, render_frontmatter
 from src.render.slug import slugify
+
+
+def _scope_bullets(statements: list[ScopeStatement]) -> list[str]:
+    if not statements:
+        return [EMPTY_MARK]
+    lines = []
+    for s in statements:
+        line = f"- {s.text} — `{s.provenance.status}`"
+        if s.provenance.status == "rejected" and s.provenance.rejection_reason:
+            line += f" ({s.provenance.rejection_reason})"
+        lines.append(line)
+    return lines
 
 
 def render_domain_card(card: DomainCard, known_entity_slugs: set[str]) -> str:
@@ -24,9 +36,9 @@ def render_domain_card(card: DomainCard, known_entity_slugs: set[str]) -> str:
     lines: list[str] = ["---", frontmatter, "---", "", f"# {card.name}", ""]
 
     lines += ["## Rozsah domény", "", "### Patří do domény", ""]
-    lines += bullets(card.scope_in)
+    lines += _scope_bullets(card.scope_in)
     lines += ["", "### Nepatří do domény", ""]
-    lines += bullets(card.scope_out)
+    lines += _scope_bullets(card.scope_out)
 
     lines += ["", "## Zdrojové systémy", ""]
     lines += bullets(card.source_systems)

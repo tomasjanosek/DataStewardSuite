@@ -6,7 +6,7 @@ import pytest
 
 from src.models.attribute import Attribute
 from src.models.decision import Decision
-from src.models.domain_card import DomainCard, EntityRef
+from src.models.domain_card import DomainCard, EntityRef, ScopeStatement
 from src.models.entity import Entity
 from src.models.open_item import OpenItem
 from src.models.process_step import ProcessStep
@@ -100,8 +100,23 @@ def sample_domain_card() -> DomainCard:
         name="Měření",
         steward="Martin Vala",
         status="proposed",
-        scope_in=["Odečty z měřicích zařízení (SCADA, AVE, Alstanet)"],
-        scope_out=["Fakturace na základě měření"],
+        scope_in=[
+            ScopeStatement(
+                id="scope-in-1",
+                text="Odečty z měřicích zařízení (SCADA, AVE, Alstanet)",
+                provenance=Provenance(
+                    source="steward", ref="session:2026-09-14-meas", confidence="high",
+                    status="confirmed", confirmed_at=datetime(2026, 9, 14, 10, 30),
+                ),
+            )
+        ],
+        scope_out=[
+            ScopeStatement(
+                id="scope-out-1",
+                text="Fakturace na základě měření",
+                provenance=Provenance(source="steward", ref="session:2026-09-14-meas", confidence="high"),
+            )
+        ],
         source_systems=["SCADA", "AVE", "Alstanet"],
         entities=[
             EntityRef(id="meas.mereni-mista", name="Měření místa", status="confirmed"),

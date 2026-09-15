@@ -15,11 +15,11 @@ source_systems:
 
 ### Patří do domény
 
-- Odečty z měřicích zařízení (SCADA, AVE, Alstanet)
+- Odečty z měřicích zařízení (SCADA, AVE, Alstanet) — `confirmed`
 
 ### Nepatří do domény
 
-- Fakturace na základě měření
+- Fakturace na základě měření — `draft`
 
 ## Zdrojové systémy
 
