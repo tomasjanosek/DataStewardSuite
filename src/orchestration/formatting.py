@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from src.models.data_query import QueryResult
 from src.models.physical_model import PhysicalModelSlice
+from src.models.profile import DataProfile
 from src.models.session import ChatMessage, SessionState
 from src.tools.doc_loader import SourceDocument
 
@@ -81,4 +83,26 @@ def format_conversation(messages: list[ChatMessage], limit: int = 20) -> str:
     if not messages:
         return "(zatím žádná konverzace)"
     lines = [f"{m.role}: {m.text}" for m in messages[-limit:]]
+    return "\n".join(lines)
+
+
+def format_data_profile(profile: DataProfile) -> str:
+    lines: list[str] = []
+    for t in profile.tables:
+        lines.append(f"## {t.table} — {t.row_count} řádků")
+        for c in t.columns:
+            range_txt = f", rozsah {c.min_value}..{c.max_value}" if c.min_value is not None else ""
+            lines.append(
+                f"  - {c.name}: null {c.null_pct:.1f}% ({c.null_count}), "
+                f"distinct {c.distinct_count}{range_txt}"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def format_query_result(result: QueryResult) -> str:
+    lines = [" | ".join(result.columns)]
+    for row in result.rows[:50]:
+        lines.append(" | ".join(str(v) for v in row))
+    lines.append(f"(celkem řádků: {result.row_count}{', oříznuto' if result.truncated else ''})")
     return "\n".join(lines)

@@ -11,7 +11,8 @@ from src.models.entity import Entity
 from src.models.lead_turn import LeadTurnResult
 from src.models.open_item import OpenItem
 from src.models.process_step import ProcessStep
-from src.models.provenance import Provenance
+from src.models.provenance import Provenance, ProvenanceConfidence
+from src.models.quality_rule import QualityRule
 from src.models.session import SessionState
 from src.models.strawman import ModelVariant
 from src.render.slug import slugify
@@ -252,6 +253,52 @@ def apply_lead_proposals(state: SessionState, turn: LeadTurnResult, session_id: 
         event_log.append("propose", kind="open_item", text=o.text)
 
 
+def propose_quality_rule(
+    state: SessionState,
+    entity_id: str,
+    *,
+    description_nl: str,
+    baseline_result: str,
+    proposed_threshold: str | None,
+    ref: str,
+    confidence: ProvenanceConfidence,
+    event_log: EventLog,
+) -> str:
+    """Materializes an analyst-measured baseline as a candidate QualityRule
+    (status="proposed") — the analyst's finding never writes "confirmed" itself,
+    same invariant as apply_lead_proposals. Returns the new rule's id."""
+    entity = state.entities[entity_id]
+    rule_id = f"qr-{uuid.uuid4().hex[:8]}"
+    entity.quality_rules.append(
+        QualityRule(
+            id=rule_id,
+            description_nl=description_nl,
+            baseline_result=baseline_result,
+            baseline_measured_at=datetime.now(),
+            proposed_threshold=proposed_threshold,
+            provenance=Provenance(source="data", ref=ref, confidence=confidence, status="proposed"),
+        )
+    )
+    event_log.append("propose", kind="quality_rule", entity_id=entity_id, ref=rule_id, description=description_nl)
+    return rule_id
+
+
+def confirm_quality_rule(state: SessionState, entity_id: str, rule_id: str, event_log: EventLog) -> None:
+    entity = state.entities[entity_id]
+    if not _confirm_in_list(entity.quality_rules, rule_id):
+        raise ValueError(f"quality rule not found: {rule_id}")
+    event_log.append("confirm", kind="quality_rule", entity_id=entity_id, ref=rule_id)
+    _snapshot(state)
+
+
+def reject_quality_rule(state: SessionState, entity_id: str, rule_id: str, reason: str, event_log: EventLog) -> None:
+    entity = state.entities[entity_id]
+    if not _reject_in_list(entity.quality_rules, rule_id, reason):
+        raise ValueError(f"quality rule not found: {rule_id}")
+    event_log.append("reject", kind="quality_rule", entity_id=entity_id, ref=rule_id, reason=reason)
+    _snapshot(state)
+
+
 def compute_coverage(state: SessionState) -> float:
     """Rough template-coverage heuristic for the UI header (% of template sections
     that have at least one confirmed element)."""
@@ -270,5 +317,10 @@ def compute_coverage(state: SessionState) -> float:
             for s in e.lifecycle
         ),
         any(d.provenance.status == "confirmed" for d in state.domain_card.decisions),
+        any(
+            q.provenance.status == "confirmed"
+            for e in state.entities.values()
+            for q in e.quality_rules
+        ),
     ]
     return sum(sections) / len(sections)
