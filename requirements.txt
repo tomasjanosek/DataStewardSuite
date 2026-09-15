@@ -5,6 +5,7 @@ pytest>=8.0,<9
 anthropic>=0.40,<1
 crewai>=0.80,<1
 json-repair>=0.25,<1
+streamlit>=1.38,<2
 
-# TODO(mvp): added in later milestones — streamlit (ui), boto3 (Bedrock),
-# redshift-connector or psycopg (analyst/Redshift tool).
+# TODO(mvp): added in milestone 4 — boto3 (Bedrock), redshift-connector or psycopg
+# (analyst/Redshift tool).

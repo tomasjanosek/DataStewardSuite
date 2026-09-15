@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ui",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "ui"],
+      "port": 8501
+    }
+  ]
+}

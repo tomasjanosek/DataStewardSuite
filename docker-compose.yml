@@ -6,6 +6,17 @@ services:
       - ./vault:/app/vault
     env_file:
       - .env
-    # TODO(mvp, milestone 3): exposes the Streamlit UI once it exists:
-    #   ports: ["8501:8501"]
-    #   command: streamlit run src/ui/app.py --server.address=0.0.0.0
+
+  ui:
+    build: .
+    volumes:
+      - .:/app
+      - ./vault:/app/vault
+      - ./sessions:/app/sessions
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+    ports:
+      - "8501:8501"
+    command: streamlit run src/ui/app.py --server.address=0.0.0.0

@@ -37,10 +37,23 @@ def run_prep(config: DomainConfig, model_path: Path | str, docs_dir: Path | str)
 
 
 def write_strawman(strawman: Strawman, sessions_dir: Path | str, session_id: str) -> Path:
-    path = Path(sessions_dir) / session_id / "strawman.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_strawman(strawman), encoding="utf-8")
-    return path
+    """Writes both the human-readable strawman.md (for the REVIEW gate to read) and
+    the structured strawman.json (for the REVIEW gate / session seeding to load)."""
+    session_dir = Path(sessions_dir) / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+
+    md_path = session_dir / "strawman.md"
+    md_path.write_text(render_strawman(strawman), encoding="utf-8")
+
+    json_path = session_dir / "strawman.json"
+    json_path.write_text(strawman.model_dump_json(indent=2), encoding="utf-8")
+
+    return md_path
+
+
+def load_strawman(sessions_dir: Path | str, session_id: str) -> Strawman:
+    path = Path(sessions_dir) / session_id / "strawman.json"
+    return Strawman.model_validate_json(path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
