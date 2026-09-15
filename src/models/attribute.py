@@ -6,6 +6,9 @@ from src.models.provenance import Provenance
 
 
 class Attribute(BaseModel):
+    # TODO(mvp): id added for milestone 3 — the session needs a stable ref to
+    # confirm/reject one specific attribute in the UI.
+    id: str
     name: str
     business_meaning: str
     physical_column: str

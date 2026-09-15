@@ -45,6 +45,7 @@ def sample_entity() -> Entity:
         ),
         attributes=[
             Attribute(
+                id="attr-1",
                 name="Stav měřicího místa",
                 business_meaning="Zda je místo aktivní, zrušené nebo v přípravě.",
                 physical_column="stav",
@@ -55,6 +56,7 @@ def sample_entity() -> Entity:
         ],
         lifecycle=[
             ProcessStep(
+                id="step-1",
                 order=1,
                 actor="Technik",
                 system="AVE",
