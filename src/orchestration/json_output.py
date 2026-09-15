@@ -20,8 +20,18 @@ def json_schema_instruction(model: type[BaseModel]) -> str:
     which would otherwise convey the schema via function-calling — without it, the
     model has no reliable way to know the exact field names/shape expected.
     """
-    schema = json.dumps(model.model_json_schema(), ensure_ascii=False)
-    return f"Přesné JSON schéma, které MUSÍŠ dodržet (žádná jiná pole, žádná jiná struktura):\n{schema}"
+    json_schema = model.model_json_schema()
+    schema = json.dumps(json_schema, ensure_ascii=False)
+    required = json_schema.get("required", [])
+    required_note = (
+        f"Povinná pole na nejvyšší úrovni objektu, žádné z nich nesmí chybět: {', '.join(required)}.\n\n"
+        if required
+        else ""
+    )
+    return (
+        f"Přesné JSON schéma, které MUSÍŠ dodržet (žádná jiná pole, žádná jiná struktura):\n"
+        f"{required_note}{schema}"
+    )
 
 
 def parse_json_output(raw: str, model: type[ModelT]) -> ModelT:

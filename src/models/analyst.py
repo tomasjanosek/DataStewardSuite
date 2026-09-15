@@ -8,7 +8,11 @@ from src.models.provenance import ProvenanceConfidence
 
 class AnalystQueryProposal(BaseModel):
     query: HypothesisQuery
-    rationale: str  # why this query tests the hypothesis — shown alongside the preview
+    # TODO(mvp): defaults to "" rather than being required — observed the model
+    # occasionally omit this field despite an explicit prompt requirement (schema +
+    # worked example) asking for it; losing the explanation isn't worth failing the
+    # whole proposal over, since query.description already carries some of it.
+    rationale: str = ""
 
 
 class AnalystFinding(BaseModel):

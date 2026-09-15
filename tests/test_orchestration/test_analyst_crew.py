@@ -29,8 +29,9 @@ def test_propose_query_returns_structured_hypothesis_query(live_llm):
     proposal = propose_query("Aktivní měřicí místo musí mít vždy přiřazené zařízení.", profile, live_llm)
 
     assert proposal.query.table == "mereni_mista"
-    assert proposal.rationale
+    assert proposal.query.description
     assert proposal.query.filters or proposal.query.group_by
+    # rationale defaults to "" rather than being required — see AnalystQueryProposal
 
 
 @requires_llm

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from src.orchestration.analyst_crew import interpret_result, propose_query
 from src.orchestration.llm import build_llm
 from src.orchestration.prep import load_strawman
 from src.orchestration.resume import build_resume_summary
@@ -15,14 +16,19 @@ from src.orchestration.session_actions import (
     confirm_decision,
     confirm_entity,
     confirm_process_step,
+    confirm_quality_rule,
     confirm_scope_item,
+    propose_quality_rule,
     reject_attribute,
     reject_decision,
     reject_entity,
     reject_process_step,
+    reject_quality_rule,
     reject_scope_item,
 )
 from src.orchestration.session_runtime import grant_consent, load_state, save_state, send_turn, start_new_session
+from src.profiling.profile import load_profile
+from src.tools.data_source_factory import build_data_source
 from src.tools.domain_config import load_domain_config
 from src.tools.event_log import EventLog
 from src.tools.vault_writer import VaultWriter
@@ -174,6 +180,24 @@ def render_artifact_panel(state, session_id: str) -> None:
                             save_state(sessions_dir(), session_id, state)
                             st.rerun()
 
+            if entity.quality_rules:
+                st.markdown("**Pravidla kvality**")
+                for q in entity.quality_rules:
+                    cols = st.columns([6, 1, 1])
+                    baseline = f" — baseline: {q.baseline_result}" if q.baseline_result else ""
+                    threshold = f" (navržený práh: {q.proposed_threshold})" if q.proposed_threshold else ""
+                    cols[0].markdown(f"{status_badge(q.provenance.status)} {q.description_nl}{baseline}{threshold}")
+                    if q.provenance.status not in ("confirmed", "rejected"):
+                        if cols[1].button("✅", key=f"confirm-qr-{q.id}"):
+                            confirm_quality_rule(state, entity_id, q.id, event_log)
+                            save_state(sessions_dir(), session_id, state)
+                            st.rerun()
+                        reason = cols[2].text_input("důvod", key=f"reason-qr-{q.id}", label_visibility="collapsed", placeholder="důvod")
+                        if cols[2].button("❌", key=f"reject-qr-{q.id}") and reason:
+                            reject_quality_rule(state, entity_id, q.id, reason, event_log)
+                            save_state(sessions_dir(), session_id, state)
+                            st.rerun()
+
     if card.decisions:
         st.subheader("Rozhodnutí")
         for d in card.decisions:
@@ -195,6 +219,115 @@ def render_artifact_panel(state, session_id: str) -> None:
         for o in card.open_items:
             owner = o.proposed_owner or "*(bez vlastníka)*"
             st.markdown(f"- [{o.status}] ({o.type}) {o.text} — {owner}")
+
+
+# ---------------------------------------------------------------------------
+# Analyst — spec section 6 phases 5/6: hypothesis checks against data, always
+# shown to the steward and approved before running (spec section 7).
+# ---------------------------------------------------------------------------
+def render_analyst_panel(state, config, session_id: str) -> None:
+    st.subheader("Ověření hypotézy (analytik)")
+
+    profile_path = Path("data/profiles") / f"{config.domain}.json"
+    if not profile_path.exists():
+        st.warning(
+            f"Chybí profil dat. Spusť napřed:\n\n"
+            f"```\npython -m src.profiling.profile --domain {config.domain}\n```"
+        )
+        return
+    profile = load_profile(profile_path)
+    data_source = build_data_source()
+    event_log = EventLog(sessions_dir(), session_id)
+
+    wizard_key = f"analyst-{session_id}"
+    wizard = st.session_state.setdefault(wizard_key, {"step": "input"})
+
+    hypothesis = st.text_area(
+        "Hypotéza", value=wizard.get("hypothesis", ""), placeholder="Např.: Aktivní měřicí místo musí mít vždy přiřazené zařízení."
+    )
+
+    if st.button("Navrhnout dotaz", disabled=not hypothesis.strip()):
+        with st.spinner("Analytik navrhuje dotaz..."):
+            try:
+                llm = build_llm()
+                proposal = propose_query(hypothesis, profile, llm)
+            except Exception as e:  # noqa: BLE001 — LLM output can occasionally fail validation; don't crash the page
+                st.error(f"Analytik se nepodařilo strukturovat dotaz, zkus to prosím znovu: {e}")
+                st.stop()
+        st.session_state[wizard_key] = {"step": "proposed", "hypothesis": hypothesis, "proposal": proposal}
+        st.rerun()
+
+    if wizard["step"] in ("proposed", "executed", "interpreted"):
+        proposal = wizard["proposal"]
+        st.markdown(f"**Zdůvodnění analytika:** {proposal.rationale or proposal.query.description}")
+        try:
+            preview = data_source.preview_query(proposal.query)
+        except Exception as e:  # noqa: BLE001 — surfaced to the steward, not swallowed
+            st.error(f"Dotaz nelze spustit: {e}")
+            return
+        st.code(preview)
+
+    if wizard["step"] == "proposed":
+        if st.button("✅ Schválit a spustit dotaz", type="primary"):
+            result = data_source.run_query(wizard["proposal"].query)
+            event_log.append(
+                "data_query", hypothesis=wizard["hypothesis"], preview=preview, row_count=result.row_count
+            )
+            wizard["step"] = "executed"
+            wizard["result"] = result
+            st.rerun()
+
+    if wizard["step"] in ("executed", "interpreted"):
+        result = wizard["result"]
+        st.dataframe([dict(zip(result.columns, row)) for row in result.rows])
+        st.caption(f"Celkem řádků: {result.row_count}{' (oříznuto)' if result.truncated else ''}")
+
+    if wizard["step"] == "executed":
+        if st.button("Interpretovat nález"):
+            with st.spinner("Analytik interpretuje výsledek..."):
+                try:
+                    llm = build_llm()
+                    finding = interpret_result(wizard["hypothesis"], preview, wizard["result"], llm)
+                except Exception as e:  # noqa: BLE001 — see propose_query's handler above
+                    st.error(f"Analytikovi se nepodařilo interpretovat výsledek, zkus to prosím znovu: {e}")
+                    st.stop()
+            event_log.append("data_query_result", hypothesis=wizard["hypothesis"], finding=finding.text)
+            wizard["step"] = "interpreted"
+            wizard["finding"] = finding
+            st.rerun()
+
+    if wizard["step"] == "interpreted":
+        finding = wizard["finding"]
+        st.markdown(f"**Nález analytika:** {finding.text}")
+        st.markdown(f"**Kvantifikace:** {finding.quantification}")
+        if finding.confirms_hypothesis is not None:
+            st.markdown(f"**Potvrzuje hypotézu:** {'ano' if finding.confirms_hypothesis else 'ne'}")
+
+        if state.entities:
+            entity_id = st.selectbox(
+                "Přidat jako pravidlo kvality k entitě",
+                options=list(state.entities.keys()),
+                format_func=lambda k: state.entities[k].name,
+                key=f"qr-entity-{session_id}",
+            )
+            if st.button("💾 Uložit jako pravidlo kvality"):
+                propose_quality_rule(
+                    state, entity_id,
+                    description_nl=wizard["hypothesis"],
+                    baseline_result=finding.quantification,
+                    proposed_threshold=finding.suggested_threshold,
+                    ref=f"session:{session_id}",
+                    confidence=finding.confidence,
+                    event_log=event_log,
+                )
+                save_state(sessions_dir(), session_id, state)
+                st.session_state[wizard_key] = {"step": "input"}
+                st.success("Pravidlo kvality navrženo — potvrď ho v panelu entity.")
+                st.rerun()
+
+    if wizard["step"] != "input" and st.button("↺ Nová hypotéza"):
+        st.session_state[wizard_key] = {"step": "input"}
+        st.rerun()
 
 
 def render_session_screen(state, config, session_id: str) -> None:
@@ -237,6 +370,9 @@ def render_session_screen(state, config, session_id: str) -> None:
 
     with right:
         render_artifact_panel(state, session_id)
+
+    st.divider()
+    render_analyst_panel(state, config, session_id)
 
 
 # ---------------------------------------------------------------------------
