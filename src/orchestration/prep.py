@@ -12,16 +12,26 @@ from src.tools.domain_config import DomainConfig
 from src.tools.model_loader import load_domain_slice
 
 
-def run_prep(config: DomainConfig, model_path: Path | str, docs_dir: Path | str) -> Strawman:
+def run_prep(
+    config: DomainConfig,
+    model_path: Path | str,
+    docs_dir: Path | str,
+    document_filenames: list[str] | None = None,
+) -> Strawman:
     """PREP phase (spec section 6): batch, no human — architect + domain_expert run,
-    lead's part (assembling the strawman + question plan) is the caller's job."""
+    lead's part (assembling the strawman + question plan) is the caller's job.
+
+    `document_filenames` defaults to config.documents (the CLI/brief-driven path);
+    the UI passes whatever's actually present in data/docs/ instead, so a steward
+    uploading files through the browser doesn't need to edit the YAML brief too.
+    """
     model_slice = load_domain_slice(
         model_path,
         domain=config.domain,
         folders=config.model_scope.folders,
         table_code_patterns=config.model_scope.table_code_patterns,
     )
-    documents = load_documents(docs_dir, config.documents)
+    documents = load_documents(docs_dir, document_filenames if document_filenames is not None else config.documents)
 
     # TODO(mvp): architect's output scales with the candidate slice size (one
     # ArchitectProposal covering every table across 2 variants) — give it a much

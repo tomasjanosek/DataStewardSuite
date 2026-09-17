@@ -22,7 +22,9 @@
         "ec2:CreateSecurityGroup",
         "ec2:CreateTags",
         "ec2:RunInstances",
-        "ec2:TerminateInstances"
+        "ec2:TerminateInstances",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupIngress"
       ],
       "Resource": "*"
     },
@@ -47,6 +49,42 @@
       "Effect": "Allow",
       "Action": "secretsmanager:DescribeSecret",
       "Resource": "*"
+    },
+    {
+      "Sid": "SsmReadOnly",
+      "Effect": "Allow",
+      "Action": "ssm:DescribeInstanceInformation",
+      "Resource": "*"
+    },
+    {
+      "Sid": "SsmSendCommand",
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ec2:eu-west-1:873540496383:instance/i-0405a7fb0877838ab",
+        "arn:aws:ssm:eu-west-1::document/AWS-RunShellScript"
+      ]
+    },
+    {
+      "Sid": "SsmGetCommandInvocation",
+      "Effect": "Allow",
+      "Action": "ssm:GetCommandInvocation",
+      "Resource": "*"
+    },
+    {
+      "Sid": "SsmStartSession",
+      "Effect": "Allow",
+      "Action": "ssm:StartSession",
+      "Resource": [
+        "arn:aws:ec2:eu-west-1:873540496383:instance/i-0405a7fb0877838ab",
+        "arn:aws:ssm:eu-west-1::document/AWS-StartPortForwardingSession"
+      ]
+    },
+    {
+      "Sid": "SsmTerminateOwnSession",
+      "Effect": "Allow",
+      "Action": "ssm:TerminateSession",
+      "Resource": "arn:aws:ssm:eu-west-1:873540496383:session/${aws:username}-*"
     }
   ]
 }

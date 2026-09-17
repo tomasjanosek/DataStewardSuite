@@ -8,7 +8,7 @@ import streamlit as st
 
 from src.orchestration.analyst_crew import interpret_result, propose_query
 from src.orchestration.llm import build_llm
-from src.orchestration.prep import load_strawman
+from src.orchestration.prep import load_strawman, run_prep, write_strawman
 from src.orchestration.resume import build_resume_summary
 from src.orchestration.session_actions import (
     compute_coverage,
@@ -29,11 +29,14 @@ from src.orchestration.session_actions import (
 from src.orchestration.session_runtime import grant_consent, load_state, save_state, send_turn, start_new_session
 from src.profiling.profile import load_profile
 from src.tools.data_source_factory import build_data_source
+from src.tools.doc_loader import list_available_documents, sanitize_filename
 from src.tools.domain_config import load_domain_config
 from src.tools.event_log import EventLog
 from src.tools.vault_writer import VaultWriter
 
 st.set_page_config(page_title="Steward Session", layout="wide")
+
+MAX_UPLOAD_BYTES = 2 * 1024 * 1024  # 2 MB/file — these are short process write-ups, not attachments
 
 
 def sessions_dir() -> Path:
@@ -42,6 +45,14 @@ def sessions_dir() -> Path:
 
 def vault_path() -> Path:
     return Path(os.environ.get("VAULT_PATH", "./vault"))
+
+
+def docs_dir() -> Path:
+    return Path(os.environ.get("DOCS_DIR", "data/docs"))
+
+
+def model_path() -> Path:
+    return Path(os.environ.get("MODEL_PATH", "data/physical_model.json"))
 
 
 def list_domains() -> list[str]:
@@ -55,15 +66,69 @@ def status_badge(status: str) -> str:
 # ---------------------------------------------------------------------------
 # REVIEW gate — spec section 6: mandatory gate between PREP and SESSION.
 # ---------------------------------------------------------------------------
+def render_prep_setup(domain: str, session_id: str) -> None:
+    """No strawman yet — let the steward upload background documents and trigger
+    PREP directly, instead of needing CLI/SSM access to the server's filesystem."""
+    st.warning(f"Pro session_id `{session_id}` zatím neexistuje strawman.")
+
+    if not model_path().exists():
+        st.error(
+            f"Chybí fyzický model `{model_path()}`. Ten musí na server umístit operátor "
+            "předem — je velký a může obsahovat citlivá interní data, proto se nenahrává přes UI."
+        )
+        return
+
+    docs_path = docs_dir()
+    docs_path.mkdir(parents=True, exist_ok=True)
+
+    st.subheader("Podkladové dokumenty")
+    existing = list_available_documents(docs_path)
+    if existing:
+        st.write("Už nahráno:")
+        for name in existing:
+            st.markdown(f"- {name}")
+    else:
+        st.caption("Zatím žádné podkladové dokumenty — PREP může běžet i bez nich (výstup pak jen z fyzického modelu).")
+
+    uploaded_files = st.file_uploader(
+        "Nahraj podkladové dokumenty (procesní popisy, metodiky, zápisy...)",
+        type=["md", "txt"],
+        accept_multiple_files=True,
+        key=f"doc-upload-{session_id}",
+    )
+    if uploaded_files:
+        saved, skipped = [], []
+        for f in uploaded_files:
+            if f.size > MAX_UPLOAD_BYTES:
+                skipped.append(f.name)
+                continue
+            safe_name = sanitize_filename(f.name)
+            (docs_path / safe_name).write_bytes(f.getvalue())
+            saved.append(safe_name)
+        if saved:
+            st.success(f"Uloženo: {', '.join(saved)}")
+        if skipped:
+            st.error(f"Přeskočeno (nad {MAX_UPLOAD_BYTES // 1024 // 1024} MB): {', '.join(skipped)}")
+        if saved:
+            st.rerun()
+
+    if st.button("▶ Spustit PREP", type="primary"):
+        config = load_domain_config(f"config/domains/{domain}.yaml")
+        with st.spinner("Architekt a doménový expert analyzují model a podklady (obvykle 1–3 min)..."):
+            strawman_result = run_prep(
+                config, model_path(), docs_path, document_filenames=list_available_documents(docs_path)
+            )
+            write_strawman(strawman_result, sessions_dir(), session_id)
+        st.success(f"Strawman vygenerován — {len(strawman_result.all_questions)} otázek pro stewarda.")
+        st.rerun()
+
+
 def render_review_gate(domain: str, session_id: str) -> None:
     st.header(f"REVIEW: {domain}")
     try:
         strawman = load_strawman(sessions_dir(), session_id)
     except FileNotFoundError:
-        st.warning(
-            f"Pro session_id `{session_id}` neexistuje strawman. Nejdřív spusť PREP:\n\n"
-            f"```\npython -m src.orchestration.prep --domain {domain} --session-id {session_id}\n```"
-        )
+        render_prep_setup(domain, session_id)
         return
 
     if not strawman.architect_proposal.variants:
