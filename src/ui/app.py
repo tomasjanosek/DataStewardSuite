@@ -64,6 +64,77 @@ def status_badge(status: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Landing page — plain-language walkthrough shown before the steward starts,
+# and reachable any time via the sidebar "❓ Jak seance funguje" button.
+# ---------------------------------------------------------------------------
+def render_landing_page() -> None:
+    st.title("Steward Session")
+    st.caption("Jak bude seance probíhat")
+
+    st.markdown(
+        "Cílem seance je společně s tebou jako datovým stewardem sestavit a potvrdit "
+        "popis datové domény — rozsah, entity, atributy, proces vzniku dat a pravidla "
+        "kvality. **Nic se do vaultu nezapíše bez tvého výslovného potvrzení.**"
+    )
+
+    steps = [
+        (
+            "1. Příprava (PREP)",
+            "Architekt a doménový expert napřed sami projdou fyzický model a případné "
+            "podkladové dokumenty a připraví návrh (tzv. strawman) — koncepční varianty "
+            "modelu a seznam otázek pro tebe. Tohle proběhne automaticky, bez tvého zásahu.",
+        ),
+        (
+            "2. Výběr varianty (REVIEW)",
+            "Uvidíš navržené varianty konceptuálního modelu i otázky, které z přípravy "
+            "vzešly. Vybereš tu, která sedí nejlíp — je to jen výchozí bod, v seanci se "
+            "dá měnit.",
+        ),
+        (
+            "3. Souhlas se záznamem",
+            "Seance se od začátku do konce zaznamenává do auditního logu — každý tah, "
+            "potvrzení i zamítnutí. Než začneme, potvrdíš, že s tím souhlasíš.",
+        ),
+        (
+            "4. Rozhovor s lead agentem",
+            "Lead ti bude postupně navrhovat rozsah domény, entity, atributy, proces "
+            "vzniku dat a pravidla kvality — na základě přípravy i toho, co mu v chatu "
+            "napíšeš. Každou položku vidíš zvlášť a u každé se rozhodneš: ✅ potvrdit, "
+            "nebo ❌ zamítnout (se stručným důvodem). Nic se nepotvrdí samo — potvrzuje "
+            "jen tvé kliknutí.",
+        ),
+        (
+            "5. Ověření hypotézy (analytik)",
+            "Kdykoliv během seance můžeš zadat hypotézu o datech (např. „aktivní měřicí "
+            "místo musí mít vždy přiřazené zařízení“). Analytik navrhne strukturovaný "
+            "dotaz, ty ho schválíš, spustí se nad reálnými daty a analytik ti nález "
+            "interpretuje. Výsledek pak můžeš uložit jako pravidlo kvality k entitě.",
+        ),
+        (
+            "6. Pozastavení a návrat",
+            "Seanci lze kdykoliv pozastavit (⏸) a vrátit se k ní později — při návratu "
+            "dostaneš krátké shrnutí toho, kde jste skončili.",
+        ),
+        (
+            "7. Dokončení a uložení",
+            "Až budeš s popisem domény spokojený/á, kliknutím na „✅ Dokončit a uložit“ "
+            "se potvrzený popis deterministicky vyrenderuje do markdown souborů a "
+            "commitne do vaultu (git).",
+        ),
+    ]
+    for title, body in steps:
+        st.markdown(f"**{title}**")
+        st.write(body)
+
+    st.divider()
+    st.caption("Stavové ikony u jednotlivých položek: ⚪ návrh · 🟡 navrženo k potvrzení · 🟢 potvrzeno · 🔴 zamítnuto")
+
+    if st.button("Pokračovat k seanci →", type="primary"):
+        st.session_state["landing_dismissed"] = True
+        st.rerun()
+
+
+# ---------------------------------------------------------------------------
 # REVIEW gate — spec section 6: mandatory gate between PREP and SESSION.
 # ---------------------------------------------------------------------------
 def render_prep_setup(domain: str, session_id: str) -> None:
@@ -443,6 +514,14 @@ def render_session_screen(state, config, session_id: str) -> None:
 # ---------------------------------------------------------------------------
 def main() -> None:
     st.sidebar.title("Steward Session")
+    if st.sidebar.button("❓ Jak seance funguje"):
+        st.session_state["landing_dismissed"] = False
+        st.rerun()
+
+    if not st.session_state.get("landing_dismissed"):
+        render_landing_page()
+        return
+
     domains = list_domains()
     if not domains:
         st.error("V config/domains/ nejsou žádné domény.")
